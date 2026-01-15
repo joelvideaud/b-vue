@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>bévue</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #ffffff;
+      touch-action: none;
+      font-family: Arial, Helvetica, sans-serif;
+    }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+  <canvas id="scene"></canvas>
+
+  <script>
+    const canvas = document.getElementById('scene');
+    const ctx = canvas.getContext('2d');
+
+    let width = 0, height = 0;
+    let baseFontSize = 200;
+
+    const word = ['b', 'é', 'v', 'u', 'e'];
+    const letters = word.map((char, i) => ({
+      char,
+      x: Math.random() * window.innerWidth,
+      y: Math.random() * window.innerHeight,
+      vx: 0,
+      vy: 0,
+      targetX: 0,
+      targetY: 0
+    }));
+
+    function resize() {
+      width = canvas.width = window.innerWidth;
+      height = canvas.height = window.innerHeight;
+      baseFontSize = Math.min(width, height) * 0.35;
+      letters.forEach((l, i) => {
+        l.targetX = width / 2 + (i - 2) * baseFontSize * 0.45;
+        l.targetY = height / 2;
+      });
+    }
+    window.addEventListener('resize', resize);
+
+    const pointer = { x: 0, y: 0, active: false };
+    function setPointer(x, y) { pointer.x = x; pointer.y = y; pointer.active = true; }
+
+    // -------- Images de fond img1 à img278 --------
+    const imageURLs = [];
+    for(let i=1; i<=278; i++) { imageURLs.push(`images/img${i}.jpg`); }
+
+    const loadedImages = imageURLs.map(src => { const img = new Image(); img.src = src; return img; });
+
+    const bgSprites = [];
+    const BG_LIFETIME = 3000;
+    const MAX_BG = 20; // limite le nombre d'images simultanées
+    let lastSpawn = 0;
+
+    function spawnBG(x, y) {
+      const now = performance.now();
+      if(now - lastSpawn < 80) return; // limite la fréquence
+      lastSpawn = now;
+
+      if(loadedImages.length === 0) return;
+      const img = loadedImages[Math.floor(Math.random() * loadedImages.length)];
+      bgSprites.push({
+        img,
+        x,
+        y,
+        vx: (Math.random() - 0.5) * 0.5,
+        vy: (Math.random() - 0.5) * 0.5,
+        scale: 0.15 + Math.random() * 0.25,
+        born: now
+      });
+
+      if(bgSprites.length > MAX_BG) bgSprites.shift();
+    }
+
+    // -------- Interactions --------
+    window.addEventListener('mousemove', e => { setPointer(e.clientX, e.clientY); spawnBG(e.clientX, e.clientY); });
+    window.addEventListener('mouseleave', () => pointer.active = false);
+    window.addEventListener('touchstart', e => { const t = e.touches[0]; setPointer(t.clientX, t.clientY); spawnBG(t.clientX, t.clientY); }, { passive: false });
+    window.addEventListener('touchmove', e => { const t = e.touches[0]; setPointer(t.clientX, t.clientY); spawnBG(t.clientX, t.clientY); }, { passive: false });
+    window.addEventListener('touchend', () => pointer.active = false);
+
+    // -------- Animation --------
+    function update() {
+      ctx.clearRect(0, 0, width, height);
+      const now = performance.now();
+
+      // Images de fond
+      for(let i = bgSprites.length - 1; i >= 0; i--) {
+        const s = bgSprites[i];
+        const age = now - s.born;
+        if(age > BG_LIFETIME) { bgSprites.splice(i,1); continue; }
+        s.x += s.vx; s.y += s.vy;
+        const w = s.img.width * s.scale;
+        const h = s.img.height * s.scale;
+        ctx.drawImage(s.img, s.x - w/2, s.y - h/2, w, h);
+      }
+
+      // Lettres
+      ctx.fillStyle = '#000';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.font = `${baseFontSize}px Arial`;
+
+      letters.forEach(l => {
+        l.vx += (l.targetX - l.x) * 0.002;
+        l.vy += (l.targetY - l.y) * 0.002;
+        if(pointer.active){
+          const dx = l.x - pointer.x;
+          const dy = l.y - pointer.y;
+          const dist = Math.sqrt(dx*dx+dy*dy) || 1;
+          const force = Math.min(150/dist,5);
+          l.vx += (dx/dist)*force;
+          l.vy += (dy/dist)*force;
+        }
+        l.vx *= 0.92; l.vy *= 0.92;
+        l.x += l.vx; l.y += l.vy;
+        ctx.fillText(l.char, l.x, l.y);
+      });
+
+      requestAnimationFrame(update);
+    }
+
+    resize();
+    update();
+  </script>
+</body>
+</html>
